@@ -92,8 +92,13 @@ my @recombinations = grep {
 } @variations;
 
 for my $combo (@recombinations) {
-    my @seqs  = map { $sequences[$_] } @$combo;
-    my $recombined = Bio::Seq->new( -id => join("|", $seqs[0]->id, map { join "|", "\@$breakpoints[$_]", $seqs[$_ + 1]->id } 0..$#breakpoints) );
+    my @seqs = map { $sequences[$_] } @$combo;
+    my $recombined = Bio::Seq->new(
+        -id => join("|",
+            $seqs[0]->id,
+            map { sprintf '@%d|%s', $breakpoints[$_], $seqs[$_ + 1]->id } 0 .. $#breakpoints
+        ),
+    );
 
     my @subseqs = (@breakpoints, $seqs[-1]->length);
     my $last_bp = 0;
