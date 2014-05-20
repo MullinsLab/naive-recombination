@@ -2,6 +2,49 @@
 use strict;
 use warnings FATAL => 'all';
 
+=head1 NAME
+
+recombine-naively - Naively recombine input sequences at specified breakpoints
+
+=head1 SYNOPSIS
+
+    recombine-naively --breakpoint=N [--breakpoint=N] [file.fasta ...]
+    recombine-naively --help
+
+=head1 DESCRIPTION
+
+Produces naive recombinant sequences (hard breaks, no mutation) from all
+possible combinations of input sequences.
+
+Input and output is in the FASTA format.
+
+If no input files are provided, stdin is read.  Output is always to stdout.
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--breakpoint=N>
+
+=item B<-b N>
+
+Specify a breakpoint should occur I<after> position N.  Positions are 1-based.
+
+This option may be repeated to add multiple breakpoints.  N may also be a
+comma-separated list of positions.
+
+The number of breakpoints may not exceed the number of sequences and breakpoint
+positions must fall within the length of the shortest sequence.
+
+=item B<--help>
+
+Show this help.
+
+=back
+
+=cut
+
+use Pod::Usage;
 use Getopt::Long;
 use File::Basename qw< basename >;
 use Bio::SeqIO;
@@ -12,17 +55,16 @@ my @breakpoints;
 GetOptions(
     "breakpoints|b=s" => \@breakpoints,
     "help" => sub {
-        print usage();
-        exit 0;
+        pod2usage( -verbose => 99, -sections => [qw( SYNOPSIS DESCRIPTION OPTIONS )] );
     },
-) or die usage("Unknown options");
+) or pod2usage();
 
 @breakpoints = split /,/, join ',', @breakpoints;
 
-die usage("No breakpoints specified")
+pod2usage("No breakpoints specified.  Run with --help to see full usage.")
     unless @breakpoints;
 
-die "Breakpoints must be a positive integer"
+die "Breakpoints must be a positive integer\n"
     if grep { /\D/ or $_ < 1 or $_ != int $_ } @breakpoints;
 
 @breakpoints = sort { $a <=> $b } uniq @breakpoints;
@@ -64,28 +106,4 @@ for my $combo (@recombinations) {
     }
     $recombined->seq($bases);
     print { $output } $recombined;
-}
-
-sub usage {
-    my $name  = basename($0);
-    my $usage = <<"    .";
-usage: $name --breakpoint=X [sequences.fasta [sequence-2.fasta]]
-
-  Produces naive recombinant sequences (hard breaks, no mutation) from all
-  possible combinations of input sequences.
-
-  If no FASTA input files are provided, stdin is read.  Output, as FASTA, is to
-  stdout.
-
-  --breakpoint=X|-b X       Specify a breakpoint should occur at position X.
-                            This option may be repeated for multiple
-                            breakpoints.  X may also be a comma-separated list
-                            of positions.
-
-  --help                    Show this help
-    .
-
-    $usage = join(" ", @_) . "\n\n$usage"
-        if @_;
-    return $usage;
 }
