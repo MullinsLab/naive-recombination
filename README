@@ -1,1 +1,38 @@
-Naive recombination of HIV sequences, for known test data.
+NAME
+    recombine-naively - Naively recombine input sequences at specified
+    breakpoints
+
+SYNOPSIS
+        recombine-naively --breakpoint=N [--breakpoint=N] [file.fasta ...]
+        recombine-naively --help
+
+DESCRIPTION
+    Produces naive recombinant sequences (hard breaks, no mutation) from all
+    possible combinations of input sequences.
+
+    Input and output is in the FASTA format.
+
+    If no input files are provided, stdin is read. Output is always to
+    stdout.
+
+    Output sequences are named in the following manner:
+
+        foo|@113|bar|@242|baz
+
+    where "foo", "bar", and "baz" are the input sequence names and 113 and
+    242 are the breakpoint locations between the adjacent sequences.
+
+OPTIONS
+    --breakpoint=N
+    -b N    Specify a breakpoint should occur *after* position N. Positions
+            are 1-based.
+
+            This option may be repeated to add multiple breakpoints. N may
+            also be a comma-separated list of positions.
+
+            The number of breakpoints may not exceed the number of sequences
+            and breakpoint positions must fall within the length of the
+            shortest sequence.
+
+    --help  Show this help.
+
