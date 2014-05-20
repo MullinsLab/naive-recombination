@@ -36,3 +36,13 @@ OPTIONS
 
     --help  Show this help.
 
+INSTALLATION
+    Currently the only supported way is using cpanm:
+
+        cpanm --installdeps .
+
+    This will install the dependencies and then you can run this program.
+
+    Alternatively, you can install the dependencies in cpanfile manually
+    with the standard cpan command.
+

@@ -49,6 +49,17 @@ Show this help.
 
 =back
 
+=head1 INSTALLATION
+
+Currently the only supported way is using L<cpanm>:
+
+    cpanm --installdeps .
+
+This will install the dependencies and then you can run this program.
+
+Alternatively, you can install the dependencies in F<cpanfile> manually with
+the standard L<cpan> command.
+
 =cut
 
 use Pod::Usage;
