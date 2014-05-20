@@ -1,0 +1,91 @@
+#!/usr/bin/env perl
+use strict;
+use warnings FATAL => 'all';
+
+use Getopt::Long;
+use File::Basename qw< basename >;
+use Bio::SeqIO;
+use Algorithm::Combinatorics qw< variations_with_repetition >;
+use List::AllUtils qw< any min uniq zip pairwise pairgrep >;
+
+my @breakpoints;
+GetOptions(
+    "breakpoints|b=s" => \@breakpoints,
+    "help" => sub {
+        print usage();
+        exit 0;
+    },
+) or die usage("Unknown options");
+
+@breakpoints = split /,/, join ',', @breakpoints;
+
+die usage("No breakpoints specified")
+    unless @breakpoints;
+
+die "Breakpoints must be a positive integer"
+    if grep { /\D/ or $_ < 1 or $_ != int $_ } @breakpoints;
+
+@breakpoints = sort { $a <=> $b } uniq @breakpoints;
+
+my $input  = Bio::SeqIO->newFh( -fh => \*ARGV,   -format => 'fasta' );
+my $output = Bio::SeqIO->newFh( -fh => \*STDOUT, -format => 'fasta' );
+
+my @sequences;
+push @sequences, $_ while <$input>;
+
+die "Number of breakpoints (", scalar @breakpoints, ") ",
+    "exceeds number of sequences (", scalar @sequences, ")\n"
+    if @breakpoints > @sequences;
+
+my $min_seq_length = min map { $_->length } @sequences;
+die "Breakpoints must be within the length of the shortest sequence ($min_seq_length).\n"
+    if any { $_ >= $min_seq_length } @breakpoints;
+
+my @variations     = variations_with_repetition([0 .. $#sequences], scalar @breakpoints + 1);
+my @recombinations = grep {
+    my @to   = @$_;                      #  1, 2, 3
+    my @from = (-1, @to[0 .. $#to - 1]); # -1, 1, 2
+    my @zip  = zip @from, @to;           # -1 => 1, 1 => 2, 2 => 3
+    not scalar pairgrep { $a == $b } @zip;
+} @variations;
+
+for my $combo (@recombinations) {
+    my @seqs  = map { $sequences[$_] } @$combo;
+    my $recombined = Bio::Seq->new( -id => join("|", $seqs[0]->id, map { join "|", "\@$breakpoints[$_]", $seqs[$_ + 1]->id } 0..$#breakpoints) );
+
+    my @subseqs = (@breakpoints, $seqs[-1]->length);
+    my $last_bp = 0;
+    my $bases;
+
+    for my $seq (@seqs) {
+        my $pos  = shift @subseqs;
+        $bases  .= $seq->subseq($last_bp + 1, $pos);
+        $last_bp = $pos;
+    }
+    $recombined->seq($bases);
+    print { $output } $recombined;
+}
+
+sub usage {
+    my $name  = basename($0);
+    my $usage = <<"    .";
+usage: $name --breakpoint=X [sequences.fasta [sequence-2.fasta]]
+
+  Produces naive recombinant sequences (hard breaks, no mutation) from all
+  possible combinations of input sequences.
+
+  If no FASTA input files are provided, stdin is read.  Output, as FASTA, is to
+  stdout.
+
+  --breakpoint=X|-b X       Specify a breakpoint should occur at position X.
+                            This option may be repeated for multiple
+                            breakpoints.  X may also be a comma-separated list
+                            of positions.
+
+  --help                    Show this help
+    .
+
+    $usage = join(" ", @_) . "\n\n$usage"
+        if @_;
+    return $usage;
+}
