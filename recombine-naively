@@ -20,6 +20,13 @@ Input and output is in the FASTA format.
 
 If no input files are provided, stdin is read.  Output is always to stdout.
 
+Output sequences are named in the following manner:
+
+    foo|@113|bar|@242|baz
+
+where C<foo>, C<bar>, and C<baz> are the input sequence names and C<113> and
+C<242> are the breakpoint locations between the adjacent sequences.
+
 =head1 OPTIONS
 
 =over 8
