@@ -68,7 +68,7 @@ with cpanm.
 =cut
 
 use FindBin;
-use lib "$FindBin::Bin/local/lib/perl5";
+use lib "$FindBin::RealBin/local/lib/perl5";
 
 use Pod::Usage;
 use Getopt::Long;
