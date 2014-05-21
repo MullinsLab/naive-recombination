@@ -55,12 +55,20 @@ Currently the only supported way is using L<cpanm>:
 
     cpanm --installdeps .
 
-This will install the dependencies and then you can run this program.
+This will install the dependencies for everyone on the system and then you can
+run this program.  You can also install dependencies in a F<local/> directory
+just for you:
+
+    cpanm --installdeps -L local .
 
 Alternatively, you can install the dependencies in F<cpanfile> manually with
-the standard L<cpan> command.
+the standard L<cpan> command.  This is equivalent to installing system-wide
+with cpanm.
 
 =cut
+
+use FindBin;
+use lib "$FindBin::Bin/local/lib/perl5";
 
 use Pod::Usage;
 use Getopt::Long;

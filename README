@@ -41,8 +41,13 @@ INSTALLATION
 
         cpanm --installdeps .
 
-    This will install the dependencies and then you can run this program.
+    This will install the dependencies for everyone on the system and then
+    you can run this program. You can also install dependencies in a local/
+    directory just for you:
+
+        cpanm --installdeps -L local .
 
     Alternatively, you can install the dependencies in cpanfile manually
-    with the standard cpan command.
+    with the standard cpan command. This is equivalent to installing
+    system-wide with cpanm.
 
