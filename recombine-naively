@@ -79,6 +79,16 @@ Alternatively, you can install the dependencies in F<cpanfile> manually with
 the standard L<cpan> command.  This is equivalent to installing system-wide
 with cpanm.
 
+=head1 AUTHOR
+
+Thomas Sibley <trsibley@uw.edu>
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright (c) 2014-2015 Mullins Lab, University of Washington.
+
+This software is licensed under the GNU General Public License, version 2.
+
 =cut
 
 use FindBin;
