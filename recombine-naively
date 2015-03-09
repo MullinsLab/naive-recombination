@@ -8,7 +8,7 @@ recombine-naively - Naively recombine input sequences at specified breakpoints
 
 =head1 SYNOPSIS
 
-    recombine-naively --breakpoint=N [--breakpoint=N] [file.fasta ...]
+    recombine-naively --breakpoint=N [--breakpoint=N] [--group-by-file] [file.fasta ...]
     recombine-naively --help
 
 =head1 DESCRIPTION
@@ -42,6 +42,15 @@ comma-separated list of positions.
 
 The number of breakpoints may not exceed the number of sequences and breakpoint
 positions must fall within the length of the shortest sequence.
+
+=item B<--group-by-file>
+
+With this option, multiple files are treated as groups of similar sequences, or
+subtypes.  Sequences are recombined with sequences from other files but not
+with sequences from the same file.
+
+Without this option, multiple files are treated the same as a single file: all
+sequences are recombined with each other.
 
 =item B<--help>
 
@@ -80,11 +89,12 @@ use Getopt::Long;
 use File::Basename qw< basename >;
 use Bio::SeqIO;
 use Algorithm::Combinatorics qw< variations_with_repetition >;
-use List::AllUtils qw< any min uniq zip pairwise pairgrep >;
+use List::AllUtils qw< any min uniq zip pairgrep pairmap >;
 
-my @breakpoints;
+my (@breakpoints, $group_by_file);
 GetOptions(
     "breakpoints|b=s" => \@breakpoints,
+    "group-by-file"   => \$group_by_file,
     "help" => sub {
         pod2usage( -verbose => 99, -sections => [qw( SYNOPSIS DESCRIPTION OPTIONS )] );
     },
@@ -100,30 +110,58 @@ die "Breakpoints must be a positive integer\n"
 
 @breakpoints = sort { $a <=> $b } uniq @breakpoints;
 
-my $input  = Bio::SeqIO->newFh( -fh => \*ARGV,   -format => 'fasta' );
-my $output = Bio::SeqIO->newFh( -fh => \*STDOUT, -format => 'fasta' );
+pod2usage("More than one file must be specified with --group-by-file.")
+    unless @ARGV > 1;
 
-my @sequences;
-push @sequences, $_ while <$input>;
+my $output = Bio::SeqIO->newFh( -fh => \*STDOUT, -format => 'fasta' );
+my @input  = @ARGV
+    ? (map { +{ -file => $_ } } @ARGV)
+    : { -fh => \*STDIN };
+
+my @sequences = map {
+    my $fasta = Bio::SeqIO->newFh( %$_, -format => 'fasta' );
+    [ <$fasta> ]
+} @input;
+
+# Unroll separate file groups into a single group if we don't need 'em
+@sequences = [ map { @$_ } @sequences ]
+    unless $group_by_file;
+
+my $max_breakpoints = $group_by_file
+    ? @sequences
+    : @{ $sequences[0] };
 
 die "Number of breakpoints (", scalar @breakpoints, ") ",
-    "exceeds number of sequences (", scalar @sequences, ")\n"
-    if @breakpoints > @sequences;
+    "exceeds number of sequences or sequence groups ($max_breakpoints)\n"
+    if @breakpoints > $max_breakpoints;
 
-my $min_seq_length = min map { $_->length } @sequences;
+my $min_seq_length = min map { $_->length } map { @$_ } @sequences;
 die "Breakpoints must be within the length of the shortest sequence ($min_seq_length).\n"
     if any { $_ >= $min_seq_length } @breakpoints;
 
-my @variations     = variations_with_repetition([0 .. $#sequences], scalar @breakpoints + 1);
+# Generate all variations, with repetition, of keys identifying group and
+# sequence.  Then filter out variations we don't want such as those with a
+# "breakpoint" that doesn't switch sequences or those which include more than
+# one sequence from a subtype group.
+my @groups  = 0 .. $#sequences;
+my @indices =
+        map { encode_group_index(@$_) }             # Transform to strings: 0#1, 0#2, 0#3, 1#1, 1#2, ...
+    pairmap { map { [$a, $_] } 0 .. (@$b - 1) }     # Unroll groups into tuples: [0, 1], [0, 2], [0, 3], [1, 1], [1, 2], ...
+        zip @groups, @sequences;                    # Interleave group indexes and sequence arrayrefs
+
+my @variations     = variations_with_repetition(\@indices, scalar @breakpoints + 1);
 my @recombinations = grep {
-    my @to   = @$_;                      #  1, 2, 3
-    my @from = (-1, @to[0 .. $#to - 1]); # -1, 1, 2
-    my @zip  = zip @from, @to;           # -1 => 1, 1 => 2, 2 => 3
-    not scalar pairgrep { $a == $b } @zip;
+        not self_adjacent(@$_)
+    and (@groups == 1 or not intra_group_repetition(@$_))
 } @variations;
 
+# Now loop through the remaining indices, stitching the pieces of the sequences
+# together for each combination and outputting them.
 for my $combo (@recombinations) {
-    my @seqs = map { $sequences[$_] } @$combo;
+    my @seqs = map {
+        my ($group, $index) = decode_group_index($_);
+        $sequences[$group][$index];
+    } @$combo;
     my $recombined = Bio::Seq->new(
         -id => join("|",
             $seqs[0]->id,
@@ -142,4 +180,26 @@ for my $combo (@recombinations) {
     }
     $recombined->seq($bases);
     print { $output } $recombined;
+}
+
+# Below here lie helper functions
+sub encode_group_index {  join "#", @_[0, 1] }  # 4, 2 -> 4#2
+sub decode_group_index { split /#/, $_[0], 2 }  # 4#2  -> 4, 2
+
+sub self_adjacent {
+    # Filter out variations where the same sequence is adjacent to itself.
+    my @seqs = @_;                      #  1, 2, 3
+    my @from = @seqs[0 .. $#seqs - 1];  #  1, 2
+    my @to   = @seqs[1 .. $#seqs];      #     2, 3
+    my @zip  = zip @from, @to;          #  1 => 2, 2 => 3
+    return scalar pairgrep { $a eq $b } @zip;
+}
+
+sub intra_group_repetition {
+    # Filter out variations with multiple sequences from the same group.
+    my @seqs = @$_;
+    my $seen = {};
+    $seen->{ $_->[0] }{ $_->[1] }++
+        for map { [decode_group_index($_)] } @seqs;
+    return scalar grep { keys %$_ > 1 } values %$seen;
 }
