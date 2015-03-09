@@ -61,6 +61,11 @@ just for you:
 
     cpanm --installdeps -L local .
 
+If you don't have L<cpanm> already, you can still install the dependencies in
+one go:
+
+    curl -fsSL https://cpanmin.us | perl - --installdeps -L local .
+
 Alternatively, you can install the dependencies in F<cpanfile> manually with
 the standard L<cpan> command.  This is equivalent to installing system-wide
 with cpanm.
